@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum ETransactionType {
+  WITHDRAW
+  DEPOSIT
+  PROFIT
+  LOSS
+  // BONUS
+}
+
+enum EMode {
+  IN
+  OUT
+}
+
+enum EDataStatus {
+  SEMUA
+  USER
+}
+
+model Role {
+  id          String      @id @default(uuid())
+  name        String
+  permission  String      @db.Text
+  data_status EDataStatus @default(SEMUA)
+
+  status     Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+  User       User[]
+}
+
+model User {
+  id         String  @id @default(uuid())
+  fullname   String
+  nik        String?
+  nip        String?
+  phone      String?
+  email      String?
+  username   String  @unique
+  password   String
+  follow_bot Boolean @default(false)
+
+  status        Boolean         @default(true)
+  created_at    DateTime        @default(now())
+  updated_at    DateTime        @default(now())
+  Role          Role            @relation(fields: [roleId], references: [id], onUpdate: Cascade)
+  roleId        String
+  logActivities LogActivities[]
+  wallets       Wallet[]
+}
+
+model Wallet {
+  id           String        @id @default(uuid())
+  User         User          @relation(fields: [userId], references: [id])
+  userId       String
+  transactions Transaction[]
+}
+
+model Transaction {
+  id     String           @id @default(uuid())
+  type   ETransactionType
+  mode   EMode
+  amount Int
+  desc   String?
+  fee    Int
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+  Wallet     Wallet   @relation(fields: [walletId], references: [id])
+  walletId   String
+}
+
+model Pair {
+  id   String @id @default(uuid())
+  name String @unique
+
+  status     Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+  Trades     Trade[]
+}
+
+model Trade {
+  id       String  @id @default(uuid())
+  side     String
+  open     Float
+  close    Float?
+  amount   Float
+  lev      Float
+  tp_price Float?
+  sl_price Float?
+  pnl      Float   @default(0)
+  reason   String?
+
+  open_time  DateTime  @default(now())
+  close_time DateTime?
+  Pair       Pair      @relation(fields: [pairId], references: [id])
+  pairId     String
+}
+
+model LogActivities {
+  id         String   @id @default(uuid())
+  method     String
+  status     String
+  ip         String
+  userAgent  String
+  User       User     @relation(fields: [userId], references: [id], onUpdate: Cascade)
+  userId     String
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+}
