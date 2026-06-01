@@ -6,7 +6,7 @@ import {
   GetHourslyReport,
   ValidateActiveTrades,
 } from "./services/order.js";
-import { FirstStrategy } from "./services/strategy.js";
+import { FirstStrategy, TwoStarategy } from "./services/strategy.js";
 import { ClosePositions, OpenOrders } from "./services/trades.js";
 
 const MainTrade = async () => {
@@ -18,7 +18,8 @@ const MainTrade = async () => {
       const c2 = await GetCandles(symbol.symbol, TIMEFRAME_HIGHER, 200);
       if (c1.candles.length < 200 || c2.candles.length < 200) continue;
 
-      const signal = await FirstStrategy(symbol.symbol, c1, c2);
+      // const signal = await FirstStrategy(symbol.symbol, c1, c2);
+      const signal = await TwoStarategy(symbol.symbol, c1, c2);
       if (!signal) continue;
 
       const actives = await GetActiveTrades(symbol.symbol);

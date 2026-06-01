@@ -3,14 +3,23 @@ import type { ICandle } from "./interfaces.js";
 import { RISK_PERCENT } from "./config.js";
 
 export const exchange = new ccxt.bitget({
-  enableRateLimit: false,
+  enableRateLimit: true,
   options: {
     defaultType: "swap", // "spot" atau "swap"
   },
 });
+let marketsLoaded = false;
+
+export async function ensureMarketsLoaded() {
+  if (!marketsLoaded) {
+    await exchange.loadMarkets();
+    marketsLoaded = true;
+  }
+}
 
 export async function GetTopFutureVolume(limit = 30) {
   try {
+    await ensureMarketsLoaded();
     const tickers = await exchange.fetchTickers();
 
     const results = Object.values(tickers)
@@ -50,6 +59,7 @@ export async function GetCandles(
   limit: number,
 ) {
   try {
+    await ensureMarketsLoaded();
     const candles = await exchange.fetchOHLCV(symbol, tf, undefined, limit);
 
     const candleMap: ICandle[] = candles.map((c) => ({
@@ -95,6 +105,7 @@ export async function GetCandles(
 
 export async function GetCurrentPrice(symbol: string): Promise<number | null> {
   try {
+    await ensureMarketsLoaded();
     const ticker = await exchange.fetchTicker(symbol);
 
     return ticker?.last || null;

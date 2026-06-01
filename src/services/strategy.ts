@@ -8,6 +8,10 @@ import type { IGetCandles, ITrade } from "../libs/interfaces.js";
 import { GetSLTPPrice } from "./risks.js";
 import {
   FindDefaultTrend,
+  getMarketStructure,
+  hasBearishDivergence,
+  hasBullishDivergence,
+  isVolumeSpike,
   LastNumber,
   PriceCross,
   StockHasticCross,
@@ -129,4 +133,120 @@ export const FirstStrategy = async (
     };
   }
   return null;
+};
+
+export const TwoStarategy = async (
+  symbol: string,
+  c1: IGetCandles,
+  c2: IGetCandles,
+): Promise<ITrade | null> => {
+  const ema20 = CalculateEMA(c1.closes, 20);
+  const ema50 = CalculateEMA(c1.closes, 50);
+  const ema200 = CalculateEMA(c1.closes, 200);
+  const rsi14 = CalculateRSI(c1.closes, 14);
+  const atr14 = CalculateATR(c1.highs, c1.lows, c1.closes, 14);
+  const stockRSI = CalculateStockRSI(c1.closes, 14, 14, 3, 3);
+
+  const stochRsiK = stockRSI.map((d) => d.k);
+  const stochRsiD = stockRSI.map((d) => d.d);
+
+  const close = LastNumber(c1.closes);
+  const emaFast = LastNumber(ema20);
+  const emaMid = LastNumber(ema50);
+  const emaSlow = LastNumber(ema200);
+  const rsi = LastNumber(rsi14);
+  const atr = LastNumber(atr14);
+
+  const htfEma200 = CalculateEMA(c2.closes, 200);
+  const htfClose = LastNumber(c2.closes);
+  const htfTrendLong = htfClose > LastNumber(htfEma200);
+  const htfTrendShort = htfClose < LastNumber(htfEma200);
+
+  const emaBullish = emaFast > emaMid && emaMid > emaSlow;
+  const emaBearish = emaFast < emaMid && emaMid < emaSlow;
+
+  const rsiBullish = rsi > 45 && rsi < 70;
+  const rsiBearish = rsi < 55 && rsi > 30;
+
+  const stochBullish = StockHasticCross(
+    { fast: stochRsiK.at(-1) || 0, slow: stochRsiK.at(-2) || 0 },
+    { fast: stochRsiD.at(-1) || 0, slow: stochRsiD.at(-2) || 0 },
+    { over: 40, under: 60 },
+    "over",
+  );
+
+  const stochBearish = StockHasticCross(
+    { fast: stochRsiK.at(-1) || 0, slow: stochRsiK.at(-2) || 0 },
+    { fast: stochRsiD.at(-1) || 0, slow: stochRsiD.at(-2) || 0 },
+    { over: 40, under: 60 },
+    "under",
+  );
+
+  const atrPercent = (atr / close) * 100;
+  const validVolatility = atrPercent >= 0.3 && atrPercent <= 1.8;
+
+  const volumeSpike = isVolumeSpike(c1.volumes, 20, 1.5);
+  const structure = getMarketStructure(c1.highs, c1.lows);
+
+  const bullishDivergence = hasBullishDivergence(c1.lows, rsi14);
+  const bearishDivergence = hasBearishDivergence(c1.highs, rsi14);
+
+  const pullbackLong =
+    close > emaMid && close >= emaFast * 0.995 && close <= emaFast * 1.012;
+
+  const pullbackShort =
+    close < emaMid && close <= emaFast * 1.005 && close >= emaFast * 0.988;
+
+  const validLong =
+    htfTrendLong &&
+    close > emaSlow &&
+    emaBullish &&
+    rsiBullish &&
+    stochBullish &&
+    validVolatility &&
+    volumeSpike &&
+    structure === "BULLISH" &&
+    pullbackLong &&
+    !bearishDivergence;
+
+  const validShort =
+    htfTrendShort &&
+    close < emaSlow &&
+    emaBearish &&
+    rsiBearish &&
+    stochBearish &&
+    validVolatility &&
+    volumeSpike &&
+    structure === "BEARISH" &&
+    pullbackShort &&
+    !bullishDivergence;
+
+  const signal = validLong ? "LONG" : validShort ? "SHORT" : "WAIT";
+
+  if (signal === "WAIT") return null;
+
+  const pricing = GetSLTPPrice(close, atr, signal === "LONG" ? "buy" : "sell");
+
+  return {
+    id: "",
+    pairId: "",
+    Pair: {
+      name: symbol,
+      id: "",
+      status: true,
+      created_at: new Date(),
+      updated_at: new Date(),
+    },
+    side: signal === "LONG" ? "buy" : "sell",
+    open_time: new Date(),
+    open: pricing.open,
+    amount: pricing.amount,
+    sl_price: pricing.sl,
+    tp_price: pricing.tp,
+    pnl: 0,
+    reason: null,
+    lev: pricing.lev,
+    close: null,
+    close_time: null,
+  };
 };
