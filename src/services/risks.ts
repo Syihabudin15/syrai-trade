@@ -1,4 +1,4 @@
-import { MAX_LEV, RISK_PERCENT } from "../libs/config.js";
+import { ATR_MULTIPLIER, MAX_LEV, RISK_PERCENT } from "../libs/config.js";
 
 export interface RiskMetrics {
   totalOpenPositions: number;
@@ -9,36 +9,37 @@ export interface RiskMetrics {
   maxDrawdown: number;
 }
 
-export const riskAmountUSDT = 10 * (RISK_PERCENT / 100);
-
 export const GetSLTPPrice = (
   price: number,
   atr: number,
   signal: "buy" | "sell",
 ) => {
-  // === VARIABEL ENTRY, SL, TP, AMOUNT ===
-  let entryPrice = price;
+  const entryPrice = price;
+
+  const slDistance = atr * ATR_MULTIPLIER;
+  const riskRewardRatio = ATR_MULTIPLIER + 0.5;
+
   let stopLossPrice = 0;
   let takeProfitPrice = 0;
-
-  // Tighter SL untuk reduce losses (1.0x ATR untuk high quality signals)
-  const slDistance = atr * 1.0;
-  // Better Risk/Reward ratio: 1:3 untuk more consistent profit
-  const riskRewardRatio = 2.2;
 
   if (signal === "buy") {
     stopLossPrice = entryPrice - slDistance;
     takeProfitPrice = entryPrice + slDistance * riskRewardRatio;
-  } else if (signal === "sell") {
+  } else {
     stopLossPrice = entryPrice + slDistance;
     takeProfitPrice = entryPrice - slDistance * riskRewardRatio;
   }
+
+  const riskUSDT = 10 * (RISK_PERCENT / 100);
+
+  const amount = riskUSDT / Math.abs(entryPrice - stopLossPrice);
+
   return {
     open: Number(entryPrice.toFixed(4)),
     sl: Number(stopLossPrice.toFixed(4)),
     tp: Number(takeProfitPrice.toFixed(4)),
-    margin: Number(riskAmountUSDT.toFixed(4)),
-    amount: Number(((riskAmountUSDT * MAX_LEV) / entryPrice).toFixed(4)),
+    margin: Number(((amount * entryPrice) / MAX_LEV).toFixed(4)),
+    amount: Number(amount.toFixed(6)),
     lev: MAX_LEV,
   };
 };

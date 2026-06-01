@@ -54,13 +54,13 @@ export const FirstStrategy = async (
   const stochBul = StockHasticCross(
     { fast: stochRsiK.at(-1) || 0, slow: stochRsiK.at(-2) || 0 },
     { fast: stochRsiD.at(-1) || 0, slow: stochRsiD.at(-2) || 0 },
-    { over: 25, under: 75 },
+    { over: 40, under: 60 },
     "over",
   );
   const stochBear = StockHasticCross(
     { fast: stochRsiK.at(-1) || 0, slow: stochRsiK.at(-2) || 0 },
     { fast: stochRsiD.at(-1) || 0, slow: stochRsiD.at(-2) || 0 },
-    { over: 25, under: 75 },
+    { over: 40, under: 60 },
     "under",
   );
 
@@ -70,7 +70,12 @@ export const FirstStrategy = async (
 
   // Volatility
   const atrPercent = ((atr14.at(-1) || 0) / close) * 100;
-  const validVolatility = atrPercent >= 0.5 && atrPercent <= 2.0;
+  const validVolatility = atrPercent >= 0.3 && atrPercent <= 1.5;
+
+  const pullbackLong =
+    close > emaMid && close >= emaFast * 0.995 && close <= emaFast * 1.01;
+  const pullbackShort =
+    close < emaMid && close <= emaFast * 1.005 && close >= emaFast * 0.99;
 
   const validLong =
     isMacroUptrend &&
@@ -80,9 +85,7 @@ export const FirstStrategy = async (
     trendC1 === "LONG" &&
     trendC2 === "LONG" &&
     validVolatility &&
-    PriceCross(close, emaFast, "over") &&
-    PriceCross(close, emaMid, "over") &&
-    PriceCross(close, prevclose, "over");
+    pullbackLong;
 
   const validShort =
     isMacroDowntrend &&
@@ -92,9 +95,7 @@ export const FirstStrategy = async (
     trendC1 === "SHORT" &&
     trendC2 === "SHORT" &&
     validVolatility &&
-    PriceCross(close, emaFast, "under") &&
-    PriceCross(close, emaMid, "under") &&
-    PriceCross(close, prevclose, "under");
+    pullbackShort;
 
   const signal = validLong ? "LONG" : validShort ? "SHORT" : "WAIT";
   const pricing = GetSLTPPrice(
