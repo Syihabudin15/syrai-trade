@@ -44,6 +44,13 @@ const MainTrade = async () => {
   }
   if (tradedata.length !== 0) {
     OpenOrders(tradedata);
+    console.table(
+      tradedata.map((t) => ({
+        Pair: t.Pair.name,
+        Side: t.side,
+        Entry: t.open,
+      })),
+    );
   }
 };
 

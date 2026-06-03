@@ -151,6 +151,7 @@ export const TwoStarategy = async (
   const stochRsiD = stockRSI.map((d) => d.d);
 
   const close = LastNumber(c1.closes);
+  const open = LastNumber(c1.opens);
   const emaFast = LastNumber(ema20);
   const emaMid = LastNumber(ema50);
   const emaSlow = LastNumber(ema200);
@@ -158,15 +159,20 @@ export const TwoStarategy = async (
   const atr = LastNumber(atr14);
 
   const htfEma200 = CalculateEMA(c2.closes, 200);
+  const htfEma50 = CalculateEMA(c2.closes, 50);
   const htfClose = LastNumber(c2.closes);
-  const htfTrendLong = htfClose > LastNumber(htfEma200);
-  const htfTrendShort = htfClose < LastNumber(htfEma200);
+  const htfFast = LastNumber(htfEma50);
+  const htfSlow = LastNumber(htfEma200);
+
+  const htfTrendLong = htfClose > htfSlow && htfFast > htfSlow;
+
+  const htfTrendShort = htfClose < htfSlow && htfFast < htfSlow;
 
   const emaBullish = emaFast > emaMid && emaMid > emaSlow;
   const emaBearish = emaFast < emaMid && emaMid < emaSlow;
 
-  const rsiBullish = rsi > 45 && rsi < 70;
-  const rsiBearish = rsi < 55 && rsi > 30;
+  const rsiBullish = rsi > 52 && rsi < 68;
+  const rsiBearish = rsi < 48 && rsi > 32;
 
   const stochBullish = StockHasticCross(
     { fast: stochRsiK.at(-1) || 0, slow: stochRsiK.at(-2) || 0 },
@@ -185,17 +191,20 @@ export const TwoStarategy = async (
   const atrPercent = (atr / close) * 100;
   const validVolatility = atrPercent >= 0.3 && atrPercent <= 1.8;
 
-  const volumeSpike = isVolumeSpike(c1.volumes, 20, 1.5);
+  const volumeSpike = isVolumeSpike(c1.volumes, 20, 1.2);
   const structure = getMarketStructure(c1.highs, c1.lows);
 
   const bullishDivergence = hasBullishDivergence(c1.lows, rsi14);
   const bearishDivergence = hasBearishDivergence(c1.highs, rsi14);
 
+  const bullishCandle = close > open;
+  const bearishCandle = close < open;
+
   const pullbackLong =
-    close > emaMid && close >= emaFast * 0.995 && close <= emaFast * 1.012;
+    close > emaMid && close >= emaFast * 0.995 && close <= emaFast * 1.005;
 
   const pullbackShort =
-    close < emaMid && close <= emaFast * 1.005 && close >= emaFast * 0.988;
+    close < emaMid && close <= emaFast * 1.005 && close >= emaFast * 0.995;
 
   const validLong =
     htfTrendLong &&
@@ -207,6 +216,7 @@ export const TwoStarategy = async (
     volumeSpike &&
     structure === "BULLISH" &&
     pullbackLong &&
+    bullishCandle &&
     !bearishDivergence;
 
   const validShort =
@@ -219,8 +229,8 @@ export const TwoStarategy = async (
     volumeSpike &&
     structure === "BEARISH" &&
     pullbackShort &&
+    bearishCandle &&
     !bullishDivergence;
-
   const signal = validLong ? "LONG" : validShort ? "SHORT" : "WAIT";
 
   if (signal === "WAIT") return null;
