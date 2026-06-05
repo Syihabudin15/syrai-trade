@@ -135,11 +135,11 @@ export const FirstStrategy = async (
   return null;
 };
 
-export const TwoStarategy = async (
+export const TwoStarategy = (
   symbol: string,
   c1: IGetCandles,
   c2: IGetCandles,
-): Promise<ITrade | null> => {
+): ITrade | null => {
   const ema20 = CalculateEMA(c1.closes, 20);
   const ema50 = CalculateEMA(c1.closes, 50);
   const ema200 = CalculateEMA(c1.closes, 200);
@@ -171,8 +171,8 @@ export const TwoStarategy = async (
   const emaBullish = emaFast > emaMid && emaMid > emaSlow;
   const emaBearish = emaFast < emaMid && emaMid < emaSlow;
 
-  const rsiBullish = rsi > 52 && rsi < 68;
-  const rsiBearish = rsi < 48 && rsi > 32;
+  const rsiBullish = rsi > 50 && rsi < 72;
+  const rsiBearish = rsi < 50 && rsi > 28;
 
   const stochBullish = StockHasticCross(
     { fast: stochRsiK.at(-1) || 0, slow: stochRsiK.at(-2) || 0 },
@@ -199,38 +199,54 @@ export const TwoStarategy = async (
 
   const bullishCandle = close > open;
   const bearishCandle = close < open;
+  const atrDistance = Math.abs(close - emaFast);
+  const maxPullbackDistance = atr * 0.8;
 
-  const pullbackLong =
-    close > emaMid && close >= emaFast * 0.995 && close <= emaFast * 1.005;
+  const pullbackLong = close > emaMid && atrDistance <= maxPullbackDistance;
 
-  const pullbackShort =
-    close < emaMid && close <= emaFast * 1.005 && close >= emaFast * 0.995;
+  const pullbackShort = close < emaMid && atrDistance <= maxPullbackDistance;
 
-  const validLong =
-    htfTrendLong &&
-    close > emaSlow &&
-    emaBullish &&
-    rsiBullish &&
-    stochBullish &&
-    validVolatility &&
-    volumeSpike &&
-    structure === "BULLISH" &&
-    pullbackLong &&
-    bullishCandle &&
-    !bearishDivergence;
+  let longScore = 0;
+  let shortScore = 0;
 
-  const validShort =
-    htfTrendShort &&
-    close < emaSlow &&
-    emaBearish &&
-    rsiBearish &&
-    stochBearish &&
-    validVolatility &&
-    volumeSpike &&
-    structure === "BEARISH" &&
-    pullbackShort &&
-    bearishCandle &&
-    !bullishDivergence;
+  if (htfTrendLong) longScore += 2;
+  if (htfTrendShort) shortScore += 2;
+
+  if (emaBullish) longScore += 2;
+  if (emaBearish) shortScore += 2;
+
+  if (close > emaSlow) longScore += 1;
+  if (close < emaSlow) shortScore += 1;
+
+  if (rsiBullish) longScore += 1;
+  if (rsiBearish) shortScore += 1;
+
+  if (stochBullish) longScore += 1;
+  if (stochBearish) shortScore += 1;
+
+  if (validVolatility) {
+    longScore += 1;
+    shortScore += 1;
+  }
+
+  if (volumeSpike) {
+    longScore += 1;
+    shortScore += 1;
+  }
+
+  if (structure === "BULLISH") longScore += 1;
+  if (structure === "BEARISH") shortScore += 1;
+
+  if (pullbackLong) longScore += 1;
+  if (pullbackShort) shortScore += 1;
+
+  if (bullishCandle) longScore += 1;
+  if (bearishCandle) shortScore += 1;
+
+  if (bearishDivergence) longScore -= 2;
+  if (bullishDivergence) shortScore -= 2;
+  const validLong = longScore >= 7 && longScore > shortScore;
+  const validShort = shortScore >= 7 && shortScore > longScore;
   const signal = validLong ? "LONG" : validShort ? "SHORT" : "WAIT";
 
   if (signal === "WAIT") return null;

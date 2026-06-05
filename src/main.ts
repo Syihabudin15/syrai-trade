@@ -1,17 +1,22 @@
 import { TIMEFRAME, TIMEFRAME_HIGHER, TOP_N } from "./libs/config.js";
 import { GetCandles, GetTopFutureVolume } from "./libs/exchange.js";
 import type { ITrade } from "./libs/interfaces.js";
+import { SendTelegramMessage } from "./libs/messages.js";
 import {
   GetActiveTrades,
+  GetAllActiveTrades,
   GetHourslyReport,
   ValidateActiveTrades,
 } from "./services/order.js";
-import { FirstStrategy, TwoStarategy } from "./services/strategy.js";
+import { TwoStarategy } from "./services/strategy.js";
 import { ClosePositions, OpenOrders } from "./services/trades.js";
 
 const MainTrade = async () => {
   const tradedata: ITrade[] = [];
   const topVolumeData = await GetTopFutureVolume(TOP_N);
+  const actives = await GetAllActiveTrades();
+  const closetrades: { order: ITrade[]; price: number }[] = [];
+
   for (const symbol of topVolumeData) {
     try {
       const c1 = await GetCandles(symbol.symbol, TIMEFRAME, 200);
@@ -19,16 +24,19 @@ const MainTrade = async () => {
       if (c1.candles.length < 200 || c2.candles.length < 200) continue;
 
       // const signal = await FirstStrategy(symbol.symbol, c1, c2);
-      const signal = await TwoStarategy(symbol.symbol, c1, c2);
+      const signal = TwoStarategy(symbol.symbol, c1, c2);
       if (!signal) continue;
 
-      const actives = await GetActiveTrades(symbol.symbol);
-      const longs = actives.filter((a) => a.side === "buy");
-      const shorts = actives.filter((a) => a.side === "sell");
+      const longs = actives.filter(
+        (a) => a.Pair.name === symbol.symbol && a.side === "buy",
+      );
+      const shorts = actives.filter(
+        (a) => a.Pair.name === symbol.symbol && a.side === "sell",
+      );
       if (signal.side === "buy" && shorts.length !== 0) {
-        ClosePositions(shorts, signal.open);
+        closetrades.push({ order: shorts, price: signal.open });
       } else if (signal.side === "sell" && longs.length !== 0) {
-        ClosePositions(longs, signal.open);
+        closetrades.push({ order: longs, price: signal.open });
       }
 
       if (
@@ -43,14 +51,28 @@ const MainTrade = async () => {
     }
   }
   if (tradedata.length !== 0) {
-    OpenOrders(tradedata);
-    console.table(
-      tradedata.map((t) => ({
-        Pair: t.Pair.name,
-        Side: t.side,
-        Entry: t.open,
-      })),
+    await OpenOrders(tradedata);
+    await SendTelegramMessage(`
+<b>🚀Order Dibuat</b>
+Jumlah Order: <b>${tradedata.length}</b>
+Pairs : <b>${tradedata.map((t) => t.Pair.name).join("/")}</b>
+      `);
+  }
+  if (closetrades.length !== 0) {
+    const closeds = await Promise.all(
+      closetrades.map((c) => ClosePositions(c.order, c.price)),
     );
+    await SendTelegramMessage(`
+<b>❌ Order Closed</b>
+Pair:  <b>${closetrades
+      .flatMap((c) => c.order)
+      .map((t) => t.Pair.name)
+      .join("/")}</b>
+Total PnL: <b>${closeds
+      .flatMap((c) => c.flatMap((f) => f.pnl))
+      .reduce((acc, curr) => acc + curr, 0)
+      .toFixed(4)}</b>
+      `);
   }
 };
 

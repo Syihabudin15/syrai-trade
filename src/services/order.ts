@@ -88,6 +88,17 @@ export function CalcPnl(
 
   return Number(((open - close) * amount).toFixed(4));
 }
+export const GetAllActiveTrades = async () => {
+  const where: Prisma.TradeWhereInput = {
+    close_time: null,
+  };
+
+  const finds = await prisma.trade.findMany({
+    where,
+    include: { Pair: true },
+  });
+  return finds;
+};
 
 export const ValidateActiveTrades = async () => {
   try {
